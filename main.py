@@ -12,7 +12,7 @@ def show_readme():
 
 # Initialize models and tokenizers (Placeholder - Actual model download commands go here)
 
-codegen_model_name = "Salesforce/codegen-350M-mono"
+codegen_model_name = "Salesforce/codegen-16B-multi"
 # Use commands in WSL to download the codegen model and tokenizer
 
 error_detection_model_name = "codellama/CodeLlama-7b-hf"
@@ -20,7 +20,7 @@ error_detection_model_name = "codellama/CodeLlama-7b-hf"
 # Use commands in WSL to download the error detection model and tokenizer
 
 # ConvNeXt V2 model for general assistant
-general_assistant_model_name = "deepset/roberta-base-squad2-covid-dialog"
+general_assistant_model_name = "OpenLlamaForCausalLM"
 
 
 # Use commands in WSL to download the ConvNeXt V2 model and tokenizer for general assistant
