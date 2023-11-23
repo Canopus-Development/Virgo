@@ -1,90 +1,99 @@
-import os
-from transformers import AutoTokenizer, AutoModelForCausalLM, GPT2Tokenizer, GPT2LMHeadModel
+import asyncio
+import wikipedia
+import black
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
+class CodeGenerator:
+    def __init__(self):
+        self.model_name = "salesforce/codegen-16b-multi"
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.model = AutoModelForCausalLM.from_pretrained(self.model_name)
 
-def generate_code(input_text):
-    try:
-        model_name = "Salesforce/codegen-350M-mono"
+    async def generate_code(self, input_text, language="python", max_length=1000):
+        try:
+            inputs = self.tokenizer(input_text, return_tensors="pt", padding=True, truncation=True)
+            input_ids = inputs["input_ids"]
+            attention_mask = inputs["attention_mask"]
 
-        # Load tokenizer and model
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        model = AutoModelForCausalLM.from_pretrained(model_name)
+            output = await asyncio.get_event_loop().run_in_executor(
+                None,
+                self.model.generate,
+                input_ids,
+                attention_mask=attention_mask,
+                max_length=max_length,
+                num_return_sequences=1,
+                temperature=0.8,
+                top_k=50,
+                top_p=0.95,
+                early_stopping=True,
+                no_repeat_ngram_size=2,
+                do_sample=True
+            )
 
-        # Tokenize input text
-        input_text = [input_text]
-        inputs = tokenizer(input_text, return_tensors="pt", padding=True, truncation=True)
-        input_ids = inputs["input_ids"]
-        attention_mask = inputs["attention_mask"]
+            decoded_output = self.tokenizer.decode(output[0], skip_special_tokens=True)
 
-        # Generate output
-        output = model.generate(input_ids, attention_mask=attention_mask, max_length=1000, num_return_sequences=1)
+            # Extract relevant code snippet
+            generated_code = decoded_output.split(input_text)[1].strip()
+            return generated_code
+        except Exception as e:
+            return f"An error occurred: {str(e)}"
 
-        # Decode the generated output
-        decoded_output = tokenizer.decode(output[0], skip_special_tokens=True)
-
-        return decoded_output
-    except Exception as e:
-        return f"An error occurred: {str(e)}"
-
-def show_readme():
-    if not os.path.exists("README.md"):
-        print("Readme file not found.")
+async def retrieve_documentation(query, language="en"):
+    wiki_wiki = wikipedia.Wikipedia(language)
+    page = wiki_wiki.page(query)
+    if page.exists():
+        return page.text
     else:
-        with open("README.md", "r") as readme_file:
-            readme_content = readme_file.read()
-            print(readme_content)
+        return f"No documentation found for '{query}' in {language}"
 
-def developer_assistant(task, input_text, input_file=None, output_file=None):
-    if task == "generate code":
-        generated_code = generate_code(input_text)
+def analyze_code(code_snippet, language="python"):
+    # Dummy analysis, replace this with your actual code analysis logic
+    suggestions = ["Add comments for better readability"]
+    if "improve" in code_snippet.lower() or "better" in code_snippet.lower():
+        suggestions.append("Consider refactoring for better code organization")
 
-        with open("output_code.txt", "w") as file:
-            file.write(generated_code)
+    # Extract suggestions from the generated code
+    generated_suggestions = extract_suggestions_from_code(code_snippet)
 
-        return "Generated code saved to output_code.txt file"
+    # Merge generated suggestions with initial suggestions
+    suggestions.extend(generated_suggestions)
+
+    return {
+        "language": language,
+        "complexity": "low",
+        "warnings": [],
+        "suggestions": suggestions,
+        # Add more analysis results as needed
+    }
+
+def extract_suggestions_from_code(code_snippet):
+    # Extract suggestions from the generated code
+    # Replace this with your logic to extract suggestions from the code snippet
+    return ["Improve variable naming", "Remove redundant code"]
+
+def format_code(code_snippet, language="python"):
+    if language.lower() == "python":
+        try:
+            return black.format_str(code_snippet, mode=black.FileMode())
+        except Exception as e:
+            return f"Error occurred during code formatting: {str(e)}"
     else:
-        return "Task not supported. Please specify a valid task for the developer assistant."
+        return "Code formatting is not supported for this language"
 
+async def main():
+    code_gen = CodeGenerator()
 
-def user_input_prompt():
-    show_readme()
-    task = input("Enter the task ('generate code', 'general'): ")
+    user_input = input("Enter a programming task: ")
 
-    if task.lower() == "general":
-        chatbot()
-    else:
-        input_text = input("Enter the input text: ")
+    generated_code = await code_gen.generate_code(user_input)
 
-        if task in ["generate code"]:
-            print(developer_assistant(task, input_text))
-        elif task == "general":
-            print(chatbot(input_text))
-        else:
-            print("Invalid task.")
+    formatted_code = format_code(generated_code)
+    analysis_results = analyze_code(generated_code)
+    documentation = await retrieve_documentation("function factorial", "en")
 
-
-def chatbot():
-    # Load pre-trained GPT-3 model and tokenizer
-    tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-    model = GPT2LMHeadModel.from_pretrained("gpt2")
-
-    # Chatbot loop
-    while True:
-        user_input = input("You: ")
-        if user_input.lower() == "exit":
-            print("Chatbot: Goodbye!")
-            break
-
-        # Tokenize user input and generate bot response
-        input_ids = tokenizer.encode(user_input, return_tensors='pt')
-        bot_response = model.generate(input_ids, max_length=100, num_return_sequences=1, temperature=0.7)
-        bot_reply = tokenizer.decode(bot_response[0], skip_special_tokens=True)
-        print(f"Chatbot: {bot_reply}")
-
-
-def main():
-    user_input_prompt()
+    print(f"Generated Code: {formatted_code}")
+    print(f"Analysis Results: {analysis_results}")
+    print(f"Documentation: {documentation}")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
